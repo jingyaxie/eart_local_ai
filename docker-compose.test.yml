@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  backend:
+    environment:
+      - ENVIRONMENT=testing
+      - DEBUG=True
+      - TESTING=True
+    command: >
+      sh -c "pytest tests/ &&
+             uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./tests:/app/tests
+
+  frontend:
+    environment:
+      - NODE_ENV=test
+      - REACT_APP_API_URL=http://localhost:8000
+    command: >
+      sh -c "npm test -- --watchAll=false &&
+             npm start"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+  db:
+    environment:
+      - POSTGRES_DB=ai_course_system_test
+    ports:
+      - "5433:5432"  # 使用不同端口避免冲突
+
+  redis:
+    ports:
+      - "6380:6379"  # 使用不同端口避免冲突 

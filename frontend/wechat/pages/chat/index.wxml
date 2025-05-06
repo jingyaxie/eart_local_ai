@@ -1,0 +1,54 @@
+<view class="chat-container">
+  <scroll-view 
+    scroll-y="true" 
+    class="message-list" 
+    id="message-list"
+    scroll-top="{{scrollTop}}"
+    scroll-into-view="{{scrollToMessage}}"
+  >
+    <block wx:for="{{messages}}" wx:key="timestamp">
+      <view class="message {{item.type}}">
+        <view class="avatar">
+          <image src="{{item.type === 'user' ? userInfo.avatarUrl : '/images/assistant.png'}}" />
+        </view>
+        <view class="content">
+          <view class="text">{{item.content}}</view>
+          <view class="time">{{item.timestamp}}</view>
+          <view class="knowledge-references" wx:if="{{item.knowledge_references && item.knowledge_references.length > 0}}">
+            <view class="reference-title">参考来源：</view>
+            <view class="reference-list">
+              <text wx:for="{{item.knowledge_references}}" wx:key="title" wx:for-item="ref" class="reference-item">
+                {{ref.title}}
+              </text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </block>
+    <view class="loading" wx:if="{{loading}}">
+      <view class="loading-dots">
+        <view class="dot"></view>
+        <view class="dot"></view>
+        <view class="dot"></view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view class="input-area">
+    <input 
+      class="input" 
+      value="{{inputValue}}" 
+      bindinput="onInput"
+      placeholder="输入你的问题..."
+      confirm-type="send"
+      bindconfirm="sendMessage"
+    />
+    <button 
+      class="send-btn" 
+      bindtap="sendMessage"
+      disabled="{{loading || !inputValue.trim()}}"
+    >
+      发送
+    </button>
+  </view>
+</view> 
