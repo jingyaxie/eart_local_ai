@@ -27,12 +27,9 @@ services:
       - POSTGRES_PASSWORD=postgres
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - MILVUS_HOST=milvus
-      - MILVUS_PORT=19530
     depends_on:
       - db
       - redis
-      - milvus
     volumes:
       - ./backend:/app
       - ./logs:/app/logs
@@ -106,22 +103,6 @@ services:
     networks:
       - app_network
 
-  milvus:
-    image: milvusdb/milvus-standalone:v2.3.3
-    container_name: eart_local_ai_milvus
-    restart: always
-    environment:
-      - ETCD_CFG.auto_compaction_mode=revision
-      - ETCD_CFG.auto_compaction_retention=1000
-      - COMMON_CFG.retention_duration=168h
-    volumes:
-      - milvus_data:/var/lib/milvus
-    ports:
-      - "19530:19530"
-      - "9091:9091"
-    networks:
-      - app_network
-
 networks:
   app_network:
     driver: bridge
@@ -129,4 +110,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  milvus_data: 
+  # milvus_data: 
