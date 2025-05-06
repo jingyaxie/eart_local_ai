@@ -57,14 +57,105 @@ fi
 # 检查环境变量文件
 print_info "检查环境变量文件..."
 if [ ! -f .env ]; then
-    if [ -f .env.example ]; then
-        cp .env.example .env
-        print_warning "请编辑 .env 文件设置必要的环境变量"
-        exit 1
-    else
-        print_error ".env.example 文件不存在"
-        exit 1
-    fi
+    print_info "创建环境变量文件..."
+    cat > .env << EOF
+# 数据库配置
+DATABASE_URL=postgresql://postgres:postgres@db:5432/ai_course_system
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=ai_course_system
+
+# Redis配置
+REDIS_URL=redis://redis:6379/0
+
+# 应用配置
+APP_NAME=AI课程系统
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://localhost
+APP_SECRET_KEY=$(openssl rand -hex 32)
+
+# 后端服务配置
+BACKEND_PORT=8000
+BACKEND_WORKERS=4
+BACKEND_HOST=0.0.0.0
+
+# 前端服务配置
+FRONTEND_PORT=80
+FRONTEND_HOST=0.0.0.0
+
+# OpenAI配置
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-3.5-turbo
+OPENAI_MAX_TOKENS=2000
+OPENAI_TEMPERATURE=0.7
+
+# 微信小程序配置
+WECHAT_APP_ID=your-wechat-app-id
+WECHAT_APP_SECRET=your-wechat-app-secret
+WECHAT_TOKEN=your-wechat-token
+WECHAT_ENCODING_AES_KEY=your-wechat-encoding-aes-key
+
+# Teams配置
+TEAMS_APP_ID=your-teams-app-id
+TEAMS_APP_SECRET=your-teams-app-secret
+TEAMS_TENANT_ID=your-teams-tenant-id
+
+# 邮件服务配置
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your-smtp-user
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM=noreply@example.com
+
+# 文件存储配置
+STORAGE_TYPE=local
+STORAGE_PATH=/app/storage
+STORAGE_URL=https://localhost/storage
+
+# 日志配置
+LOG_LEVEL=INFO
+LOG_PATH=/app/logs
+LOG_MAX_SIZE=100MB
+LOG_BACKUP_COUNT=10
+
+# 缓存配置
+CACHE_TYPE=redis
+CACHE_TTL=3600
+
+# 会话配置
+SESSION_TYPE=redis
+SESSION_TTL=7200
+
+# 安全配置
+CORS_ORIGINS=https://localhost
+CORS_METHODS=GET,POST,PUT,DELETE,OPTIONS
+CORS_HEADERS=Content-Type,Authorization
+CORS_MAX_AGE=3600
+
+# 监控配置
+ENABLE_METRICS=true
+METRICS_PORT=9090
+PROMETHEUS_ENABLED=true
+
+# 备份配置
+BACKUP_PATH=/app/backups
+BACKUP_RETENTION_DAYS=30
+BACKUP_SCHEDULE="0 2 * * *"
+
+# 系统限制
+MAX_UPLOAD_SIZE=50MB
+MAX_REQUESTS_PER_MINUTE=100
+MAX_CONNECTIONS=1000
+
+# 其他配置
+TIMEZONE=Asia/Shanghai
+LANGUAGE=zh_CN
+DEFAULT_PAGE_SIZE=20
+MAX_PAGE_SIZE=100
+EOF
+    print_warning "请编辑 .env 文件设置必要的环境变量"
+    exit 1
 fi
 
 # 构建和启动服务
