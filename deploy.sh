@@ -22,22 +22,26 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# 检查是否为root用户
+check_root() {
+    if [ "$EUID" -ne 0 ]; then
+        print_error "请使用root权限运行此脚本"
+        print_info "请使用: sudo $0"
+        exit 1
+    fi
+}
+
 # 获取服务器IP地址
 get_server_ip() {
     # 尝试多种方法获取IP地址
     local ip=""
     
-    # 方法1: 使用curl获取公网IP
+    # 方法1: 获取公网IP
     if command -v curl &> /dev/null; then
         ip=$(curl -s https://api.ipify.org)
     fi
     
-    # 方法2: 使用wget获取公网IP
-    if [ -z "$ip" ] && command -v wget &> /dev/null; then
-        ip=$(wget -qO- https://api.ipify.org)
-    fi
-    
-    # 方法3: 获取本地IP
+    # 方法2: 获取本地IP
     if [ -z "$ip" ]; then
         ip=$(hostname -I | awk '{print $1}')
     fi
@@ -58,17 +62,37 @@ check_command() {
     fi
 }
 
+# 检查Docker权限
+check_docker_permissions() {
+    if ! docker info &> /dev/null; then
+        print_error "Docker权限检查失败"
+        print_info "请确保当前用户在docker用户组中"
+        print_info "可以运行以下命令添加用户到docker组："
+        print_info "sudo usermod -aG docker $USER"
+        print_info "然后重新登录服务器"
+        exit 1
+    fi
+}
+
+# 检查是否为root用户
+check_root
+
 # 检查必要的命令
 print_info "检查必要的命令..."
 check_command docker
 check_command docker-compose
 check_command openssl
 
+# 检查Docker权限
+print_info "检查Docker权限..."
+check_docker_permissions
+
 # 创建必要的目录
 print_info "创建必要的目录..."
 mkdir -p nginx/ssl
 mkdir -p logs
 mkdir -p backend/logs
+chmod -R 755 nginx/ssl logs backend/logs
 
 # 生成SSL证书
 print_info "生成SSL证书..."
@@ -77,6 +101,8 @@ if [ ! -f nginx/ssl/cert.pem ] || [ ! -f nginx/ssl/key.pem ]; then
         -keyout nginx/ssl/key.pem \
         -out nginx/ssl/cert.pem \
         -subj "/C=CN/ST=State/L=City/O=Organization/CN=localhost"
+    chmod 644 nginx/ssl/cert.pem
+    chmod 600 nginx/ssl/key.pem
     print_info "SSL证书已生成"
 else
     print_warning "SSL证书已存在，跳过生成"
@@ -186,6 +212,7 @@ LANGUAGE=zh_CN
 DEFAULT_PAGE_SIZE=20
 MAX_PAGE_SIZE=100
 EOF
+    chmod 644 .env
     print_info "已创建默认环境变量文件，你可以在后台管理界面中配置相关设置"
 fi
 
