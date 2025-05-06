@@ -2,6 +2,10 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
+# 设置环境变量
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
 # 安装系统依赖
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -21,11 +25,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制项目文件
 COPY . .
 
-# 创建日志目录
-RUN mkdir -p /app/logs
+# 创建日志目录和数据目录
+RUN mkdir -p /app/logs /app/data
+
+# 设置执行权限
+RUN chmod +x /app/scripts/start.sh
 
 # 暴露端口
 EXPOSE 8000
 
 # 启动命令
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"] 
+CMD ["/app/scripts/start.sh"] 
