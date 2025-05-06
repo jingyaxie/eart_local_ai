@@ -1,5 +1,5 @@
-# 使用 Python 3.9 作为基础镜像
-FROM python:3.9-slim
+# 使用阿里云镜像源的 Python 3.9 基础镜像
+FROM registry.cn-hangzhou.aliyuncs.com/library/python:3.9-slim
 
 # 设置工作目录
 WORKDIR /app
@@ -24,10 +24,10 @@ RUN apt-get update && apt-get install -y \
 # 配置pip使用国内镜像
 RUN mkdir -p /etc/pip && \
     echo "[global]" > /etc/pip/pip.conf && \
-    echo "index-url = https://pypi.tuna.tsinghua.edu.cn/simple" >> /etc/pip/pip.conf && \
-    echo "extra-index-url = https://mirrors.aliyun.com/pypi/simple/ https://pypi.doubanio.com/simple/ https://pypi.mirrors.ustc.edu.cn/simple/" >> /etc/pip/pip.conf && \
+    echo "index-url = https://mirrors.aliyun.com/pypi/simple/" >> /etc/pip/pip.conf && \
+    echo "extra-index-url = https://pypi.tuna.tsinghua.edu.cn/simple/ https://pypi.doubanio.com/simple/ https://pypi.mirrors.ustc.edu.cn/simple/" >> /etc/pip/pip.conf && \
     echo "[install]" >> /etc/pip/pip.conf && \
-    echo "trusted-host = pypi.tuna.tsinghua.edu.cn mirrors.aliyun.com pypi.doubanio.com pypi.mirrors.ustc.edu.cn" >> /etc/pip/pip.conf
+    echo "trusted-host = mirrors.aliyun.com pypi.tuna.tsinghua.edu.cn pypi.doubanio.com pypi.mirrors.ustc.edu.cn" >> /etc/pip/pip.conf
 
 # 复制项目文件
 COPY requirements.txt .

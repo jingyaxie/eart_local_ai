@@ -238,6 +238,23 @@ EOF
     print_info "已创建默认环境变量文件，你可以在后台管理界面中配置相关设置"
 fi
 
+# 配置Docker镜像源
+setup_docker_mirror() {
+    print_info "配置Docker镜像源..."
+    mkdir -p /etc/docker
+    cat > /etc/docker/daemon.json << EOF
+{
+    "registry-mirrors": [
+        "https://registry.cn-hangzhou.aliyuncs.com",
+        "https://docker.mirrors.ustc.edu.cn",
+        "https://hub-mirror.c.163.com",
+        "https://mirror.ccs.tencentyun.com"
+    ]
+}
+EOF
+    systemctl restart docker
+}
+
 # 构建和启动服务
 print_info "构建和启动服务..."
 $DOCKER_COMPOSE_CMD build
