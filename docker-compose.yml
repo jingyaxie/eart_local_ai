@@ -97,7 +97,7 @@ services:
     restart: always
 
   milvus:
-    image: registry.cn-hangzhou.aliyuncs.com/milvus/milvus:v2.2.3
+    image: registry.cn-hangzhou.aliyuncs.com/milvusdb/milvus:v2.2.3
     container_name: eart_local_ai_milvus
     restart: always
     environment:
