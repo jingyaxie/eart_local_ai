@@ -57,13 +57,13 @@ get_server_ip() {
 # 检查命令是否存在
 check_command() {
     if ! command -v $1 &> /dev/null; then
-        print_warning "$1 未安装，正在安装..."
+        echo -e "${YELLOW}警告: $1 未安装${NC}"
         if [ "$1" = "docker" ]; then
-            curl -fsSL https://get.docker.com | sh
+            echo "请安装 Docker: https://docs.docker.com/get-docker/"
         elif [ "$1" = "docker-compose" ]; then
-            curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            chmod +x /usr/local/bin/docker-compose
+            echo "请安装 Docker Compose: https://docs.docker.com/compose/install/"
         fi
+        exit 1
     fi
 }
 
@@ -240,19 +240,28 @@ fi
 
 # 配置Docker镜像源
 setup_docker_mirror() {
-    print_info "配置Docker镜像源..."
-    mkdir -p /etc/docker
-    cat > /etc/docker/daemon.json << EOF
+    echo -e "${GREEN}配置 Docker 镜像加速器...${NC}"
+    
+    # 创建 Docker 配置目录
+    sudo mkdir -p /etc/docker
+    
+    # 配置镜像加速器
+    cat << EOF | sudo tee /etc/docker/daemon.json
 {
     "registry-mirrors": [
-        "https://registry.cn-hangzhou.aliyuncs.com",
-        "https://docker.mirrors.ustc.edu.cn",
+        "https://mirror.ccs.tencentyun.com",
         "https://hub-mirror.c.163.com",
-        "https://mirror.ccs.tencentyun.com"
+        "https://registry.docker-cn.com",
+        "https://docker.mirrors.ustc.edu.cn"
     ]
 }
 EOF
-    systemctl restart docker
+    
+    # 重启 Docker 服务
+    sudo systemctl daemon-reload
+    sudo systemctl restart docker
+    
+    echo -e "${GREEN}Docker 镜像加速器配置完成${NC}"
 }
 
 # 构建和启动服务
