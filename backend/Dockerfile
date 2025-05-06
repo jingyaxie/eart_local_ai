@@ -5,30 +5,33 @@ FROM python:3.9-slim
 WORKDIR /app
 
 # 设置环境变量
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# 使用阿里云镜像源
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y \
     build-essential \
-    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# 复制 pip 配置文件
+COPY pip.conf /etc/pip.conf
+
 # 复制项目文件
-COPY . .
+COPY requirements.txt .
+COPY app/ app/
+COPY config/ config/
 
-# 设置执行权限
-RUN chmod +x /app/scripts/install_deps.sh \
-    && chmod +x /app/scripts/start.sh
-
-# 安装Python依赖
-RUN /app/scripts/install_deps.sh
-
-# 创建日志目录和数据目录
-RUN mkdir -p /app/logs /app/data
+# 安装 Python 依赖
+RUN pip install -r requirements.txt
 
 # 暴露端口
 EXPOSE 8000
 
 # 启动命令
-CMD ["/app/scripts/start.sh"] 
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"] 
