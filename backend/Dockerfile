@@ -8,6 +8,10 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# 配置pip使用国内镜像源
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+    && pip config set global.timeout 1000
+
 # 复制依赖文件
 COPY requirements.txt .
 
