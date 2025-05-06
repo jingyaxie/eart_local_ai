@@ -74,14 +74,31 @@ check_docker_permissions() {
     fi
 }
 
+# 检查docker-compose命令
+check_docker_compose() {
+    if command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE_CMD="docker-compose"
+    elif docker compose version &> /dev/null; then
+        DOCKER_COMPOSE_CMD="docker compose"
+    else
+        print_error "docker-compose 未安装"
+        print_info "请安装 docker-compose 或确保 docker compose 命令可用"
+        exit 1
+    fi
+    print_info "使用 docker compose 命令: $DOCKER_COMPOSE_CMD"
+}
+
 # 检查是否为root用户
 check_root
 
 # 检查必要的命令
 print_info "检查必要的命令..."
 check_command docker
-check_command docker-compose
 check_command openssl
+
+# 检查docker-compose命令
+print_info "检查docker-compose命令..."
+check_docker_compose
 
 # 检查Docker权限
 print_info "检查Docker权限..."
@@ -218,8 +235,8 @@ fi
 
 # 构建和启动服务
 print_info "构建和启动服务..."
-docker-compose build
-docker-compose up -d
+$DOCKER_COMPOSE_CMD build
+$DOCKER_COMPOSE_CMD up -d
 
 # 等待服务启动
 print_info "等待服务启动..."
@@ -227,16 +244,16 @@ sleep 10
 
 # 检查服务状态
 print_info "检查服务状态..."
-docker-compose ps
+$DOCKER_COMPOSE_CMD ps
 
 # 运行数据库迁移
 print_info "运行数据库迁移..."
-docker-compose exec -T backend alembic upgrade head
+$DOCKER_COMPOSE_CMD exec -T backend alembic upgrade head
 
 # 初始化数据
 print_info "初始化数据..."
 if [ -f "scripts/init_data.py" ]; then
-    docker-compose exec -T backend python scripts/init_data.py
+    $DOCKER_COMPOSE_CMD exec -T backend python scripts/init_data.py
 else
     print_warning "初始化脚本不存在，跳过数据初始化"
 fi
@@ -263,5 +280,5 @@ print_info "前端访问地址: https://${SERVER_IP}"
 print_info "后端API地址: https://${SERVER_IP}/api"
 print_info "后台管理地址: https://${SERVER_IP}/admin"
 print_info "================================================"
-print_info "查看服务日志: docker-compose logs -f"
+print_info "查看服务日志: $DOCKER_COMPOSE_CMD logs -f"
 print_info "注意：请在后台管理界面中配置必要的设置，如 OpenAI API、微信小程序等" 
