@@ -22,6 +22,34 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# 获取服务器IP地址
+get_server_ip() {
+    # 尝试多种方法获取IP地址
+    local ip=""
+    
+    # 方法1: 使用curl获取公网IP
+    if command -v curl &> /dev/null; then
+        ip=$(curl -s https://api.ipify.org)
+    fi
+    
+    # 方法2: 使用wget获取公网IP
+    if [ -z "$ip" ] && command -v wget &> /dev/null; then
+        ip=$(wget -qO- https://api.ipify.org)
+    fi
+    
+    # 方法3: 获取本地IP
+    if [ -z "$ip" ]; then
+        ip=$(hostname -I | awk '{print $1}')
+    fi
+    
+    # 如果还是获取不到，使用localhost
+    if [ -z "$ip" ]; then
+        ip="localhost"
+    fi
+    
+    echo "$ip"
+}
+
 # 检查命令是否存在
 check_command() {
     if ! command -v $1 &> /dev/null; then
@@ -54,6 +82,10 @@ else
     print_warning "SSL证书已存在，跳过生成"
 fi
 
+# 获取服务器IP
+SERVER_IP=$(get_server_ip)
+print_info "检测到服务器IP: $SERVER_IP"
+
 # 检查环境变量文件
 print_info "检查环境变量文件..."
 if [ ! -f .env ]; then
@@ -72,7 +104,7 @@ REDIS_URL=redis://redis:6379/0
 APP_NAME=AI课程系统
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://localhost
+APP_URL=https://${SERVER_IP}
 APP_SECRET_KEY=$(openssl rand -hex 32)
 
 # 后端服务配置
@@ -85,33 +117,33 @@ FRONTEND_PORT=80
 FRONTEND_HOST=0.0.0.0
 
 # OpenAI配置
-OPENAI_API_KEY=your-openai-api-key
+OPENAI_API_KEY=
 OPENAI_MODEL=gpt-3.5-turbo
 OPENAI_MAX_TOKENS=2000
 OPENAI_TEMPERATURE=0.7
 
 # 微信小程序配置
-WECHAT_APP_ID=your-wechat-app-id
-WECHAT_APP_SECRET=your-wechat-app-secret
-WECHAT_TOKEN=your-wechat-token
-WECHAT_ENCODING_AES_KEY=your-wechat-encoding-aes-key
+WECHAT_APP_ID=
+WECHAT_APP_SECRET=
+WECHAT_TOKEN=
+WECHAT_ENCODING_AES_KEY=
 
 # Teams配置
-TEAMS_APP_ID=your-teams-app-id
-TEAMS_APP_SECRET=your-teams-app-secret
-TEAMS_TENANT_ID=your-teams-tenant-id
+TEAMS_APP_ID=
+TEAMS_APP_SECRET=
+TEAMS_TENANT_ID=
 
 # 邮件服务配置
-SMTP_HOST=smtp.example.com
+SMTP_HOST=
 SMTP_PORT=587
-SMTP_USER=your-smtp-user
-SMTP_PASSWORD=your-smtp-password
-SMTP_FROM=noreply@example.com
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM=
 
 # 文件存储配置
 STORAGE_TYPE=local
 STORAGE_PATH=/app/storage
-STORAGE_URL=https://localhost/storage
+STORAGE_URL=https://${SERVER_IP}/storage
 
 # 日志配置
 LOG_LEVEL=INFO
@@ -128,7 +160,7 @@ SESSION_TYPE=redis
 SESSION_TTL=7200
 
 # 安全配置
-CORS_ORIGINS=https://localhost
+CORS_ORIGINS=https://${SERVER_IP}
 CORS_METHODS=GET,POST,PUT,DELETE,OPTIONS
 CORS_HEADERS=Content-Type,Authorization
 CORS_MAX_AGE=3600
@@ -154,8 +186,7 @@ LANGUAGE=zh_CN
 DEFAULT_PAGE_SIZE=20
 MAX_PAGE_SIZE=100
 EOF
-    print_warning "请编辑 .env 文件设置必要的环境变量"
-    exit 1
+    print_info "已创建默认环境变量文件，你可以在后台管理界面中配置相关设置"
 fi
 
 # 构建和启动服务
@@ -199,6 +230,11 @@ fi
 
 # 显示部署完成信息
 print_info "部署完成！"
-print_info "前端访问地址: https://localhost"
-print_info "后端API地址: https://localhost/api"
-print_info "查看服务日志: docker-compose logs -f" 
+print_info "================================================"
+print_info "系统访问地址："
+print_info "前端访问地址: https://${SERVER_IP}"
+print_info "后端API地址: https://${SERVER_IP}/api"
+print_info "后台管理地址: https://${SERVER_IP}/admin"
+print_info "================================================"
+print_info "查看服务日志: docker-compose logs -f"
+print_info "注意：请在后台管理界面中配置必要的设置，如 OpenAI API、微信小程序等" 
