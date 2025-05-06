@@ -1,5 +1,7 @@
+# 使用 Python 3.9 作为基础镜像
 FROM python:3.9-slim
 
+# 设置工作目录
 WORKDIR /app
 
 # 设置环境变量
@@ -12,27 +14,18 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 升级 pip
-RUN pip install --no-cache-dir --upgrade pip
-
-# 配置pip使用国内镜像源
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
-    && pip config set global.timeout 1000
-
-# 复制依赖文件
-COPY requirements.txt .
-
-# 安装Python依赖
-RUN pip install --no-cache-dir -r requirements.txt
-
 # 复制项目文件
 COPY . .
 
+# 设置执行权限
+RUN chmod +x /app/scripts/install_deps.sh \
+    && chmod +x /app/scripts/start.sh
+
+# 安装Python依赖
+RUN /app/scripts/install_deps.sh
+
 # 创建日志目录和数据目录
 RUN mkdir -p /app/logs /app/data
-
-# 设置执行权限
-RUN chmod +x /app/scripts/start.sh
 
 # 暴露端口
 EXPOSE 8000
