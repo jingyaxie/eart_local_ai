@@ -60,10 +60,8 @@ check_command() {
         echo -e "${YELLOW}警告: $1 未安装${NC}"
         if [ "$1" = "docker" ]; then
             echo "请安装 Docker: https://docs.docker.com/get-docker/"
-        elif [ "$1" = "docker-compose" ]; then
-            echo "请安装 Docker Compose: https://docs.docker.com/compose/install/"
+            exit 1
         fi
-        exit 1
     fi
 }
 
@@ -99,7 +97,6 @@ check_root
 # 检查必要的命令
 print_info "检查必要的命令..."
 check_command docker
-check_command docker-compose
 
 # 检查docker-compose命令
 print_info "检查docker-compose命令..."
