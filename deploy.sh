@@ -57,8 +57,13 @@ get_server_ip() {
 # 检查命令是否存在
 check_command() {
     if ! command -v $1 &> /dev/null; then
-        print_error "$1 未安装"
-        exit 1
+        print_warning "$1 未安装，正在安装..."
+        if [ "$1" = "docker" ]; then
+            curl -fsSL https://get.docker.com | sh
+        elif [ "$1" = "docker-compose" ]; then
+            curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            chmod +x /usr/local/bin/docker-compose
+        fi
     fi
 }
 
@@ -94,7 +99,7 @@ check_root
 # 检查必要的命令
 print_info "检查必要的命令..."
 check_command docker
-check_command openssl
+check_command docker-compose
 
 # 检查docker-compose命令
 print_info "检查docker-compose命令..."
