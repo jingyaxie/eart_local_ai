@@ -87,13 +87,14 @@ setup_docker_mirror() {
     cat > ~/.docker/daemon.json << EOF
 {
     "registry-mirrors": [
-        "https://registry.cn-hangzhou.aliyuncs.com",
         "https://mirror.ccs.tencentyun.com",
+        "https://registry.cn-hangzhou.aliyuncs.com",
         "https://hub-mirror.c.163.com",
         "https://docker.mirrors.ustc.edu.cn",
         "https://dockerhub.azk8s.cn"
     ],
     "insecure-registries": [
+        "ccr.ccs.tencentyun.com",
         "registry.cn-hangzhou.aliyuncs.com"
     ]
 }
@@ -105,6 +106,8 @@ EOF
     if [ "$PLATFORM" = "linux" ]; then
         print_info "重启Docker服务..."
         sudo systemctl restart docker
+        # 等待Docker服务完全启动
+        sleep 5
     elif [ "$PLATFORM" = "macos" ]; then
         print_info "请手动重启Docker Desktop以应用新配置"
     elif [ "$PLATFORM" = "windows" ]; then
