@@ -89,19 +89,27 @@ class DependencyChecker:
                          stdout=subprocess.PIPE, 
                          stderr=subprocess.PIPE, 
                          check=True)
-            subprocess.run([str(python_path), '-m', 'pip', 'install', 'pip-tools'], 
-                         stdout=subprocess.PIPE, 
-                         stderr=subprocess.PIPE, 
-                         check=True)
             
-            # 检查依赖
+            # 使用pip的dry-run模式检查依赖
             logger.info("检查依赖兼容性...")
-            result = subprocess.run([str(python_path), '-m', 'piptools', 'check', '-r', str(self.requirements_file)], 
-                                  stdout=subprocess.PIPE, 
-                                  stderr=subprocess.PIPE)
+            result = subprocess.run([
+                str(python_path),
+                '-m',
+                'pip',
+                'install',
+                '--dry-run',
+                '-r',
+                str(self.requirements_file)
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             
             if result.returncode != 0:
                 logger.error(f"依赖检查失败: {result.stderr.decode()}")
+                return False
+            
+            # 检查是否有警告信息
+            output = result.stdout.decode() + result.stderr.decode()
+            if "ERROR" in output or "error" in output.lower():
+                logger.error(f"发现依赖问题: {output}")
                 return False
                 
             return True
