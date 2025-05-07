@@ -21,8 +21,11 @@ class DependencyChecker:
     def __init__(self):
         self.system = platform.system().lower()
         self.python_version = sys.version_info[:2]
-        self.requirements_file = Path('requirements.txt')
-        self.cache_file = Path('.dependency_cache.json')
+        # 修改requirements.txt的路径，使用相对于脚本的路径
+        self.script_dir = Path(__file__).parent
+        self.project_root = self.script_dir.parent
+        self.requirements_file = self.project_root / 'requirements.txt'
+        self.cache_file = self.project_root / '.dependency_cache.json'
         self.cache_duration = 24 * 60 * 60  # 24小时缓存
         self.min_python_version = (3, 6)  # 修改最低Python版本要求为3.6
 
@@ -41,6 +44,10 @@ class DependencyChecker:
 
     def parse_requirements(self) -> List[Dict]:
         """解析requirements.txt文件，返回包信息列表"""
+        if not self.requirements_file.exists():
+            logger.error(f"requirements.txt文件不存在: {self.requirements_file}")
+            return []
+            
         requirements = []
         with open(self.requirements_file, 'r') as f:
             for line in f:
@@ -70,21 +77,23 @@ class DependencyChecker:
 
         try:
             # 创建虚拟环境进行依赖检查
-            venv_dir = Path('.venv')
+            venv_dir = self.project_root / '.venv'
             if not venv_dir.exists():
                 logger.info("创建虚拟环境...")
                 subprocess.run([sys.executable, '-m', 'venv', str(venv_dir)], check=True)
 
-            # 获取虚拟环境中的pip路径
+            # 获取虚拟环境中的Python路径
             if self.system == 'windows':
-                pip_path = venv_dir / 'Scripts' / 'pip'
+                python_path = venv_dir / 'Scripts' / 'python'
             else:
-                pip_path = venv_dir / 'bin' / 'pip'
+                python_path = venv_dir / 'bin' / 'python'
 
-            # 安装pip-tools
+            # 使用python -m pip安装pip-tools
             logger.info("安装pip-tools...")
             subprocess.run([
-                str(pip_path),
+                str(python_path),
+                '-m',
+                'pip',
                 'install',
                 'pip-tools',
                 '--no-cache-dir',
@@ -94,7 +103,9 @@ class DependencyChecker:
             # 生成依赖树
             logger.info("检查依赖兼容性...")
             result = subprocess.run([
-                str(pip_path),
+                str(python_path),
+                '-m',
+                'pip',
                 'install',
                 '--dry-run',
                 '-r',
@@ -169,6 +180,9 @@ class DependencyChecker:
         # 解析requirements.txt
         try:
             requirements = self.parse_requirements()
+            if not requirements:
+                logger.error("没有找到有效的依赖项")
+                return False
             logger.info(f"成功解析 {len(requirements)} 个依赖项")
         except Exception as e:
             logger.error(f"解析requirements.txt失败: {str(e)}")
