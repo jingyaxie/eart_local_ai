@@ -89,12 +89,27 @@ setup_docker_mirror() {
     "registry-mirrors": [
         "https://registry.cn-hangzhou.aliyuncs.com",
         "https://mirror.ccs.tencentyun.com",
-        "https://hub-mirror.c.163.com"
+        "https://hub-mirror.c.163.com",
+        "https://docker.mirrors.ustc.edu.cn",
+        "https://dockerhub.azk8s.cn"
+    ],
+    "insecure-registries": [
+        "registry.cn-hangzhou.aliyuncs.com"
     ]
 }
 EOF
     
     print_info "Docker镜像源配置完成"
+    
+    # 重启Docker服务以应用新配置
+    if [ "$PLATFORM" = "linux" ]; then
+        print_info "重启Docker服务..."
+        sudo systemctl restart docker
+    elif [ "$PLATFORM" = "macos" ]; then
+        print_info "请手动重启Docker Desktop以应用新配置"
+    elif [ "$PLATFORM" = "windows" ]; then
+        print_info "请手动重启Docker Desktop以应用新配置"
+    fi
 }
 
 # 主函数
