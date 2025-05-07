@@ -3,48 +3,98 @@
 # 设置错误时退出
 set -e
 
+# 检测操作系统
+OS="$(uname -s)"
+case "${OS}" in
+    Linux*)     PLATFORM="linux";;
+    Darwin*)    PLATFORM="macos";;
+    CYGWIN*)    PLATFORM="windows";;
+    MINGW*)     PLATFORM="windows";;
+    *)          PLATFORM="unknown";;
+esac
+
 # 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+if [ "$PLATFORM" = "windows" ]; then
+    # Windows下使用简单的颜色标记
+    RED='[ERROR]'
+    GREEN='[INFO]'
+    YELLOW='[WARNING]'
+    NC=''
+else
+    # Unix系统使用ANSI颜色
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    NC='\033[0m'
+fi
 
 # 打印带颜色的信息
 print_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    if [ "$PLATFORM" = "windows" ]; then
+        echo "$GREEN $1"
+    else
+        echo -e "${GREEN}[INFO]${NC} $1"
+    fi
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    if [ "$PLATFORM" = "windows" ]; then
+        echo "$YELLOW $1"
+    else
+        echo -e "${YELLOW}[WARNING]${NC} $1"
+    fi
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    if [ "$PLATFORM" = "windows" ]; then
+        echo "$RED $1"
+    else
+        echo -e "${RED}[ERROR]${NC} $1"
+    fi
 }
 
 # 检查是否为root用户
 check_root() {
-    if [ "$EUID" -ne 0 ]; then
-        print_error "请使用root权限运行此脚本"
-        print_info "请使用: sudo $0"
-        exit 1
+    if [ "$PLATFORM" = "windows" ]; then
+        # Windows下检查管理员权限
+        net session >/dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            print_error "请使用管理员权限运行此脚本"
+            print_info "请右键点击脚本，选择'以管理员身份运行'"
+            exit 1
+        fi
+    else
+        # Unix系统检查root权限
+        if [ "$EUID" -ne 0 ]; then
+            print_error "请使用root权限运行此脚本"
+            print_info "请使用: sudo $0"
+            exit 1
+        fi
     fi
 }
 
 # 获取服务器IP地址
 get_server_ip() {
-    # 尝试多种方法获取IP地址
     local ip=""
     
-    # 方法1: 获取公网IP
-    if command -v curl &> /dev/null; then
-        ip=$(curl -s https://api.ipify.org)
-    fi
-    
-    # 方法2: 获取本地IP
-    if [ -z "$ip" ]; then
-        ip=$(hostname -I | awk '{print $1}')
-    fi
+    case "$PLATFORM" in
+        "linux")
+            # Linux下尝试多种方法
+            if command -v ip &> /dev/null; then
+                ip=$(ip route get 1 | awk '{print $7;exit}')
+            elif command -v hostname &> /dev/null; then
+                ip=$(hostname -I | awk '{print $1}')
+            fi
+            ;;
+        "macos")
+            # macOS下获取IP
+            ip=$(ipconfig getifaddr en0 || ipconfig getifaddr en1)
+            ;;
+        "windows")
+            # Windows下获取IP
+            ip=$(ipconfig | findstr /i "IPv4" | findstr /v "127.0.0.1" | awk '{print $NF}')
+            ;;
+    esac
     
     # 如果还是获取不到，使用localhost
     if [ -z "$ip" ]; then
@@ -57,11 +107,24 @@ get_server_ip() {
 # 检查命令是否存在
 check_command() {
     if ! command -v $1 &> /dev/null; then
-        echo -e "${YELLOW}警告: $1 未安装${NC}"
-        if [ "$1" = "docker" ]; then
-            echo "请安装 Docker: https://docs.docker.com/get-docker/"
-            exit 1
-        fi
+        print_error "$1 未安装"
+        case "$PLATFORM" in
+            "linux")
+                print_info "请使用包管理器安装 $1"
+                if command -v apt-get &> /dev/null; then
+                    print_info "sudo apt-get install $1"
+                elif command -v yum &> /dev/null; then
+                    print_info "sudo yum install $1"
+                fi
+                ;;
+            "macos")
+                print_info "请使用 Homebrew 安装 $1: brew install $1"
+                ;;
+            "windows")
+                print_info "请访问官方网站下载并安装 $1"
+                ;;
+        esac
+        exit 1
     fi
 }
 
@@ -69,10 +132,21 @@ check_command() {
 check_docker_permissions() {
     if ! docker info &> /dev/null; then
         print_error "Docker权限检查失败"
-        print_info "请确保当前用户在docker用户组中"
-        print_info "可以运行以下命令添加用户到docker组："
-        print_info "sudo usermod -aG docker $USER"
-        print_info "然后重新登录服务器"
+        case "$PLATFORM" in
+            "linux")
+                print_info "请确保当前用户在docker用户组中"
+                print_info "sudo usermod -aG docker $USER"
+                print_info "然后重新登录服务器"
+                ;;
+            "macos")
+                print_info "请确保Docker Desktop正在运行"
+                print_info "并已授予必要的权限"
+                ;;
+            "windows")
+                print_info "请确保Docker Desktop正在运行"
+                print_info "并以管理员身份运行此脚本"
+                ;;
+        esac
         exit 1
     fi
 }
@@ -85,51 +159,177 @@ check_docker_compose() {
         DOCKER_COMPOSE_CMD="docker compose"
     else
         print_error "docker-compose 未安装"
-        print_info "请安装 docker-compose 或确保 docker compose 命令可用"
+        case "$PLATFORM" in
+            "linux")
+                print_info "请安装 docker-compose:"
+                print_info "sudo apt-get install docker-compose"
+                ;;
+            "macos")
+                print_info "请使用 Homebrew 安装:"
+                print_info "brew install docker-compose"
+                ;;
+            "windows")
+                print_info "Docker Desktop 已包含 docker-compose"
+                print_info "请确保 Docker Desktop 已正确安装"
+                ;;
+        esac
         exit 1
     fi
     print_info "使用 docker compose 命令: $DOCKER_COMPOSE_CMD"
 }
 
-# 检查是否为root用户
-check_root
+# 检查依赖兼容性
+check_dependencies() {
+    print_info "检查依赖兼容性..."
+    
+    # 检查Python版本
+    if ! command -v python3 &> /dev/null; then
+        print_error "Python 3 未安装"
+        case "$PLATFORM" in
+            "linux")
+                print_info "请安装 Python 3:"
+                print_info "sudo apt-get install python3"
+                ;;
+            "macos")
+                print_info "请使用 Homebrew 安装:"
+                print_info "brew install python@3.9"
+                ;;
+            "windows")
+                print_info "请从 Python 官网下载并安装 Python 3.9"
+                ;;
+        esac
+        exit 1
+    fi
+    
+    # 检查pip
+    if ! command -v pip3 &> /dev/null; then
+        print_error "pip3 未安装"
+        case "$PLATFORM" in
+            "linux")
+                print_info "请安装 pip3:"
+                print_info "sudo apt-get install python3-pip"
+                ;;
+            "macos")
+                print_info "请使用 Homebrew 安装:"
+                print_info "brew install python@3.9"
+                ;;
+            "windows")
+                print_info "请从 Python 官网下载并安装 Python 3.9"
+                ;;
+        esac
+        exit 1
+    fi
+    
+    # 安装pip-tools
+    pip3 install --quiet pip-tools
+    
+    # 运行依赖检查脚本
+    if [ -f "backend/scripts/check_deps.py" ]; then
+        python3 backend/scripts/check_deps.py
+    else
+        print_warning "依赖检查脚本不存在，跳过检查"
+    fi
+}
 
-# 检查必要的命令
-print_info "检查必要的命令..."
-check_command docker
+# 清理旧的构建缓存
+cleanup_build_cache() {
+    print_info "清理构建缓存..."
+    docker builder prune -f
+}
 
-# 检查docker-compose命令
-print_info "检查docker-compose命令..."
-check_docker_compose
+# 配置Docker镜像源
+setup_docker_mirror() {
+    print_info "配置Docker镜像源..."
+    
+    case "$PLATFORM" in
+        "linux")
+            # Linux下配置Docker镜像
+            sudo mkdir -p /etc/docker
+            sudo tee /etc/docker/daemon.json <<-'EOF'
+{
+    "registry-mirrors": [
+        "https://registry.cn-hangzhou.aliyuncs.com",
+        "https://mirror.ccs.tencentyun.com",
+        "https://hub-mirror.c.163.com",
+        "https://mirror.baidubce.com"
+    ]
+}
+EOF
+            sudo systemctl restart docker
+            ;;
+        "macos")
+            # macOS下配置Docker镜像
+            mkdir -p ~/.docker
+            tee ~/.docker/daemon.json <<-'EOF'
+{
+    "registry-mirrors": [
+        "https://registry.cn-hangzhou.aliyuncs.com",
+        "https://mirror.ccs.tencentyun.com",
+        "https://hub-mirror.c.163.com",
+        "https://mirror.baidubce.com"
+    ]
+}
+EOF
+            # 重启Docker Desktop
+            osascript -e 'quit app "Docker"'
+            open -a Docker
+            ;;
+        "windows")
+            # Windows下配置Docker镜像
+            mkdir -p "$USERPROFILE/.docker"
+            tee "$USERPROFILE/.docker/daemon.json" <<-'EOF'
+{
+    "registry-mirrors": [
+        "https://registry.cn-hangzhou.aliyuncs.com",
+        "https://mirror.ccs.tencentyun.com",
+        "https://hub-mirror.c.163.com",
+        "https://mirror.baidubce.com"
+    ]
+}
+EOF
+            # 重启Docker Desktop
+            taskkill //F //IM "Docker Desktop.exe"
+            start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+            ;;
+    esac
+}
 
-# 检查Docker权限
-print_info "检查Docker权限..."
-check_docker_permissions
+# 主函数
+main() {
+    print_info "开始部署..."
+    
+    # 检查必要的命令
+    check_command docker
+    check_docker_compose
+    check_docker_permissions
+    
+    # 配置Docker镜像源
+    setup_docker_mirror
+    
+    # 检查依赖兼容性
+    check_dependencies
+    
+    # 清理构建缓存
+    cleanup_build_cache
+    
+    # 构建和启动服务
+    print_info "构建和启动服务..."
+    $DOCKER_COMPOSE_CMD build --no-cache
+    $DOCKER_COMPOSE_CMD up -d
+    
+    # 等待服务启动
+    print_info "等待服务启动..."
+    sleep 10
+    
+    # 检查服务状态
+    print_info "检查服务状态..."
+    $DOCKER_COMPOSE_CMD ps
+    
+    print_info "部署完成！"
+}
 
-# 创建必要的目录
-print_info "创建必要的目录..."
-mkdir -p nginx/ssl
-mkdir -p logs
-mkdir -p backend/logs
-chmod -R 755 nginx/ssl logs backend/logs
-
-# 生成SSL证书
-print_info "生成SSL证书..."
-if [ ! -f nginx/ssl/cert.pem ] || [ ! -f nginx/ssl/key.pem ]; then
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout nginx/ssl/key.pem \
-        -out nginx/ssl/cert.pem \
-        -subj "/C=CN/ST=State/L=City/O=Organization/CN=localhost"
-    chmod 644 nginx/ssl/cert.pem
-    chmod 600 nginx/ssl/key.pem
-    print_info "SSL证书已生成"
-else
-    print_warning "SSL证书已存在，跳过生成"
-fi
-
-# 获取服务器IP
-SERVER_IP=$(get_server_ip)
-print_info "检测到服务器IP: $SERVER_IP"
+# 执行主函数
+main
 
 # 检查环境变量文件
 print_info "检查环境变量文件..."
@@ -235,44 +435,9 @@ EOF
     print_info "已创建默认环境变量文件，你可以在后台管理界面中配置相关设置"
 fi
 
-# 配置Docker镜像源
-setup_docker_mirror() {
-    echo -e "${GREEN}配置 Docker 镜像加速器...${NC}"
-    
-    # 创建 Docker 配置目录
-    sudo mkdir -p /etc/docker
-    
-    # 配置镜像加速器
-    cat << EOF | sudo tee /etc/docker/daemon.json
-{
-    "registry-mirrors": [
-        "https://mirror.ccs.tencentyun.com",
-        "https://hub-mirror.c.163.com",
-        "https://registry.docker-cn.com",
-        "https://docker.mirrors.ustc.edu.cn"
-    ]
-}
-EOF
-    
-    # 重启 Docker 服务
-    sudo systemctl daemon-reload
-    sudo systemctl restart docker
-    
-    echo -e "${GREEN}Docker 镜像加速器配置完成${NC}"
-}
-
-# 构建和启动服务
-print_info "构建和启动服务..."
-$DOCKER_COMPOSE_CMD build
-$DOCKER_COMPOSE_CMD up -d
-
-# 等待服务启动
-print_info "等待服务启动..."
-sleep 10
-
-# 检查服务状态
-print_info "检查服务状态..."
-$DOCKER_COMPOSE_CMD ps
+# 获取服务器IP
+SERVER_IP=$(get_server_ip)
+print_info "检测到服务器IP: $SERVER_IP"
 
 # 运行数据库迁移
 print_info "运行数据库迁移..."
