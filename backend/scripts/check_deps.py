@@ -24,6 +24,7 @@ class DependencyChecker:
         self.requirements_file = Path('requirements.txt')
         self.cache_file = Path('.dependency_cache.json')
         self.cache_duration = 24 * 60 * 60  # 24小时缓存
+        self.min_python_version = (3, 6)  # 修改最低Python版本要求为3.6
 
     def get_package_info(self, package_name: str) -> Optional[Dict]:
         """从PyPI获取包信息"""
@@ -122,8 +123,8 @@ class DependencyChecker:
         issues = []
         
         # 检查Python版本
-        if self.python_version < (3, 9):
-            issues.append(f"Python版本不兼容: 需要 >= 3.9, 当前: {self.python_version[0]}.{self.python_version[1]}")
+        if self.python_version < self.min_python_version:
+            issues.append(f"Python版本不兼容: 需要 >= {self.min_python_version[0]}.{self.min_python_version[1]}, 当前: {self.python_version[0]}.{self.python_version[1]}")
 
         # 检查操作系统特定要求
         if self.system == 'windows':
