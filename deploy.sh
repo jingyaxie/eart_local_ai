@@ -151,31 +151,27 @@ check_docker_permissions() {
     fi
 }
 
-# 检查docker-compose命令
-check_docker_compose() {
-    if command -v docker-compose &> /dev/null; then
-        DOCKER_COMPOSE_CMD="docker-compose"
-    elif docker compose version &> /dev/null; then
-        DOCKER_COMPOSE_CMD="docker compose"
-    else
-        print_error "docker-compose 未安装"
-        case "$PLATFORM" in
-            "linux")
-                print_info "请安装 docker-compose:"
-                print_info "sudo apt-get install docker-compose"
-                ;;
-            "macos")
-                print_info "请使用 Homebrew 安装:"
-                print_info "brew install docker-compose"
-                ;;
-            "windows")
-                print_info "Docker Desktop 已包含 docker-compose"
-                print_info "请确保 Docker Desktop 已正确安装"
-                ;;
-        esac
+# 检查Docker是否安装
+check_docker() {
+    if ! command -v docker &> /dev/null; then
+        print_error "Docker未安装"
+        print_info "请访问 https://docs.docker.com/get-docker/ 安装Docker"
         exit 1
     fi
-    print_info "使用 docker compose 命令: $DOCKER_COMPOSE_CMD"
+}
+
+# 检查docker-compose
+check_docker_compose() {
+    if docker compose version &> /dev/null; then
+        DOCKER_COMPOSE_CMD="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE_CMD="docker-compose"
+    else
+        print_error "docker-compose未安装"
+        print_info "请安装docker-compose或确保docker compose命令可用"
+        exit 1
+    fi
+    print_info "使用docker compose命令: $DOCKER_COMPOSE_CMD"
 }
 
 # 检查依赖兼容性
@@ -241,57 +237,21 @@ cleanup_build_cache() {
 setup_docker_mirror() {
     print_info "配置Docker镜像源..."
     
-    case "$PLATFORM" in
-        "linux")
-            # Linux下配置Docker镜像
-            sudo mkdir -p /etc/docker
-            sudo tee /etc/docker/daemon.json <<-'EOF'
+    # 创建配置目录
+    mkdir -p ~/.docker
+    
+    # 配置镜像源
+    cat > ~/.docker/daemon.json << EOF
 {
     "registry-mirrors": [
         "https://registry.cn-hangzhou.aliyuncs.com",
         "https://mirror.ccs.tencentyun.com",
-        "https://hub-mirror.c.163.com",
-        "https://mirror.baidubce.com"
+        "https://hub-mirror.c.163.com"
     ]
 }
 EOF
-            sudo systemctl restart docker
-            ;;
-        "macos")
-            # macOS下配置Docker镜像
-            mkdir -p ~/.docker
-            tee ~/.docker/daemon.json <<-'EOF'
-{
-    "registry-mirrors": [
-        "https://registry.cn-hangzhou.aliyuncs.com",
-        "https://mirror.ccs.tencentyun.com",
-        "https://hub-mirror.c.163.com",
-        "https://mirror.baidubce.com"
-    ]
-}
-EOF
-            # 重启Docker Desktop
-            osascript -e 'quit app "Docker"'
-            open -a Docker
-            ;;
-        "windows")
-            # Windows下配置Docker镜像
-            mkdir -p "$USERPROFILE/.docker"
-            tee "$USERPROFILE/.docker/daemon.json" <<-'EOF'
-{
-    "registry-mirrors": [
-        "https://registry.cn-hangzhou.aliyuncs.com",
-        "https://mirror.ccs.tencentyun.com",
-        "https://hub-mirror.c.163.com",
-        "https://mirror.baidubce.com"
-    ]
-}
-EOF
-            # 重启Docker Desktop
-            taskkill //F //IM "Docker Desktop.exe"
-            start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-            ;;
-    esac
+    
+    print_info "Docker镜像源配置完成"
 }
 
 # 主函数
