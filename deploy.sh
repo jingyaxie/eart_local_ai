@@ -53,104 +53,6 @@ print_error() {
     fi
 }
 
-# 检查是否为root用户
-check_root() {
-    if [ "$PLATFORM" = "windows" ]; then
-        # Windows下检查管理员权限
-        net session >/dev/null 2>&1
-        if [ $? -ne 0 ]; then
-            print_error "请使用管理员权限运行此脚本"
-            print_info "请右键点击脚本，选择'以管理员身份运行'"
-            exit 1
-        fi
-    else
-        # Unix系统检查root权限
-        if [ "$EUID" -ne 0 ]; then
-            print_error "请使用root权限运行此脚本"
-            print_info "请使用: sudo $0"
-            exit 1
-        fi
-    fi
-}
-
-# 获取服务器IP地址
-get_server_ip() {
-    local ip=""
-    
-    case "$PLATFORM" in
-        "linux")
-            # Linux下尝试多种方法
-            if command -v ip &> /dev/null; then
-                ip=$(ip route get 1 | awk '{print $7;exit}')
-            elif command -v hostname &> /dev/null; then
-                ip=$(hostname -I | awk '{print $1}')
-            fi
-            ;;
-        "macos")
-            # macOS下获取IP
-            ip=$(ipconfig getifaddr en0 || ipconfig getifaddr en1)
-            ;;
-        "windows")
-            # Windows下获取IP
-            ip=$(ipconfig | findstr /i "IPv4" | findstr /v "127.0.0.1" | awk '{print $NF}')
-            ;;
-    esac
-    
-    # 如果还是获取不到，使用localhost
-    if [ -z "$ip" ]; then
-        ip="localhost"
-    fi
-    
-    echo "$ip"
-}
-
-# 检查命令是否存在
-check_command() {
-    if ! command -v $1 &> /dev/null; then
-        print_error "$1 未安装"
-        case "$PLATFORM" in
-            "linux")
-                print_info "请使用包管理器安装 $1"
-                if command -v apt-get &> /dev/null; then
-                    print_info "sudo apt-get install $1"
-                elif command -v yum &> /dev/null; then
-                    print_info "sudo yum install $1"
-                fi
-                ;;
-            "macos")
-                print_info "请使用 Homebrew 安装 $1: brew install $1"
-                ;;
-            "windows")
-                print_info "请访问官方网站下载并安装 $1"
-                ;;
-        esac
-        exit 1
-    fi
-}
-
-# 检查Docker权限
-check_docker_permissions() {
-    if ! docker info &> /dev/null; then
-        print_error "Docker权限检查失败"
-        case "$PLATFORM" in
-            "linux")
-                print_info "请确保当前用户在docker用户组中"
-                print_info "sudo usermod -aG docker $USER"
-                print_info "然后重新登录服务器"
-                ;;
-            "macos")
-                print_info "请确保Docker Desktop正在运行"
-                print_info "并已授予必要的权限"
-                ;;
-            "windows")
-                print_info "请确保Docker Desktop正在运行"
-                print_info "并以管理员身份运行此脚本"
-                ;;
-        esac
-        exit 1
-    fi
-}
-
 # 检查Docker是否安装
 check_docker() {
     if ! command -v docker &> /dev/null; then
@@ -172,65 +74,6 @@ check_docker_compose() {
         exit 1
     fi
     print_info "使用docker compose命令: $DOCKER_COMPOSE_CMD"
-}
-
-# 检查依赖兼容性
-check_dependencies() {
-    print_info "检查依赖兼容性..."
-    
-    # 检查Python版本
-    if ! command -v python3 &> /dev/null; then
-        print_error "Python 3 未安装"
-        case "$PLATFORM" in
-            "linux")
-                print_info "请安装 Python 3:"
-                print_info "sudo apt-get install python3"
-                ;;
-            "macos")
-                print_info "请使用 Homebrew 安装:"
-                print_info "brew install python@3.9"
-                ;;
-            "windows")
-                print_info "请从 Python 官网下载并安装 Python 3.9"
-                ;;
-        esac
-        exit 1
-    fi
-    
-    # 检查pip
-    if ! command -v pip3 &> /dev/null; then
-        print_error "pip3 未安装"
-        case "$PLATFORM" in
-            "linux")
-                print_info "请安装 pip3:"
-                print_info "sudo apt-get install python3-pip"
-                ;;
-            "macos")
-                print_info "请使用 Homebrew 安装:"
-                print_info "brew install python@3.9"
-                ;;
-            "windows")
-                print_info "请从 Python 官网下载并安装 Python 3.9"
-                ;;
-        esac
-        exit 1
-    fi
-    
-    # 安装pip-tools
-    pip3 install --quiet pip-tools
-    
-    # 运行依赖检查脚本
-    if [ -f "backend/scripts/check_deps.py" ]; then
-        python3 backend/scripts/check_deps.py
-    else
-        print_warning "依赖检查脚本不存在，跳过检查"
-    fi
-}
-
-# 清理旧的构建缓存
-cleanup_build_cache() {
-    print_info "清理构建缓存..."
-    docker builder prune -f
 }
 
 # 配置Docker镜像源
@@ -259,18 +102,11 @@ main() {
     print_info "开始部署..."
     
     # 检查必要的命令
-    check_command docker
+    check_docker
     check_docker_compose
-    check_docker_permissions
     
     # 配置Docker镜像源
     setup_docker_mirror
-    
-    # 检查依赖兼容性
-    check_dependencies
-    
-    # 清理构建缓存
-    cleanup_build_cache
     
     # 构建和启动服务
     print_info "构建和启动服务..."
