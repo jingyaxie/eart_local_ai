@@ -9,6 +9,7 @@ import logging
 import json
 import requests
 from pathlib import Path
+from datetime import datetime, timedelta
 
 # 配置日志
 logging.basicConfig(
@@ -26,7 +27,7 @@ class DependencyChecker:
         self.project_root = self.script_dir.parent
         self.requirements_file = self.project_root / 'requirements.txt'
         self.cache_file = self.project_root / '.dependency_cache.json'
-        self.cache_duration = 24 * 60 * 60  # 24小时缓存
+        self.cache_duration = timedelta(hours=24)
         self.min_python_version = (3, 6)  # 修改最低Python版本要求为3.6
 
     def get_package_info(self, package_name: str) -> Optional[Dict]:
@@ -58,151 +59,151 @@ class DependencyChecker:
                         requirements.append({
                             'name': req.name,
                             'specs': req.specs,
-                            'markers': str(req.marker) if req.marker else None
+                            'line': line
                         })
                     except Exception as e:
-                        logger.error(f"解析依赖项失败: {line} - {str(e)}")
+                        logger.warning(f"解析依赖失败: {line}, 错误: {str(e)}")
         return requirements
 
-    def check_package_compatibility(self, requirements: List[Dict]) -> List[Tuple[str, str]]:
-        """检查包之间的兼容性"""
-        conflicts = []
-        
-        # 检查缓存
-        if self.cache_file.exists():
-            cache_data = json.loads(self.cache_file.read_text())
-            if cache_data.get('timestamp', 0) > (os.path.getmtime(self.cache_file) - self.cache_duration):
-                logger.info("使用缓存的依赖检查结果")
-                return cache_data.get('conflicts', [])
-
+    def check_package_compatibility(self) -> bool:
+        """检查包兼容性"""
         try:
-            # 创建虚拟环境进行依赖检查
-            venv_dir = self.project_root / '.venv'
-            if not venv_dir.exists():
+            # 创建虚拟环境
+            venv_path = self.project_root / '.venv'
+            if not venv_path.exists():
                 logger.info("创建虚拟环境...")
-                subprocess.run([sys.executable, '-m', 'venv', str(venv_dir)], check=True)
-
-            # 获取虚拟环境中的Python路径
+                subprocess.run([sys.executable, '-m', 'venv', str(venv_path)], 
+                             stdout=subprocess.PIPE, 
+                             stderr=subprocess.PIPE, 
+                             check=True)
+            
+            # 获取虚拟环境中的Python解释器路径
             if self.system == 'windows':
-                python_path = venv_dir / 'Scripts' / 'python'
+                python_path = venv_path / 'Scripts' / 'python.exe'
             else:
-                python_path = venv_dir / 'bin' / 'python'
-
-            # 使用python -m pip安装pip-tools
+                python_path = venv_path / 'bin' / 'python'
+            
+            # 安装pip-tools
             logger.info("安装pip-tools...")
-            subprocess.run([
-                str(python_path),
-                '-m',
-                'pip',
-                'install',
-                'pip-tools',
-                '--no-cache-dir',
-                '--quiet'
-            ], check=True)
-
-            # 生成依赖树
+            subprocess.run([str(python_path), '-m', 'pip', 'install', '--upgrade', 'pip'], 
+                         stdout=subprocess.PIPE, 
+                         stderr=subprocess.PIPE, 
+                         check=True)
+            subprocess.run([str(python_path), '-m', 'pip', 'install', 'pip-tools'], 
+                         stdout=subprocess.PIPE, 
+                         stderr=subprocess.PIPE, 
+                         check=True)
+            
+            # 检查依赖
             logger.info("检查依赖兼容性...")
-            result = subprocess.run([
-                str(python_path),
-                '-m',
-                'pip',
-                'install',
-                '--dry-run',
-                '-r',
-                str(self.requirements_file)
-            ], capture_output=True, text=True)
-
+            result = subprocess.run([str(python_path), '-m', 'piptools', 'check', '-r', str(self.requirements_file)], 
+                                  stdout=subprocess.PIPE, 
+                                  stderr=subprocess.PIPE)
+            
             if result.returncode != 0:
-                conflicts.append(('dependency-check', result.stderr))
-
-            # 更新缓存
-            cache_data = {
-                'timestamp': os.path.getmtime(self.cache_file),
-                'conflicts': conflicts
-            }
-            self.cache_file.write_text(json.dumps(cache_data))
-
-        except subprocess.CalledProcessError as e:
-            conflicts.append(('dependency-check', str(e)))
+                logger.error(f"依赖检查失败: {result.stderr.decode()}")
+                return False
+                
+            return True
         except Exception as e:
-            conflicts.append(('dependency-check', f"未知错误: {str(e)}"))
+            logger.error(f"检查依赖兼容性时出错: {str(e)}")
+            return False
 
-        return conflicts
-
-    def check_system_requirements(self) -> List[str]:
+    def check_system_requirements(self) -> bool:
         """检查系统要求"""
-        issues = []
-        
-        # 检查Python版本
-        if self.python_version < self.min_python_version:
-            issues.append(f"Python版本不兼容: 需要 >= {self.min_python_version[0]}.{self.min_python_version[1]}, 当前: {self.python_version[0]}.{self.python_version[1]}")
+        try:
+            # 检查Python版本
+            if self.python_version < self.min_python_version:
+                logger.error(f"Python版本不兼容: 需要 >= {self.min_python_version[0]}.{self.min_python_version[1]}, 当前版本: {self.python_version[0]}.{self.python_version[1]}")
+                return False
+            
+            # 检查操作系统
+            if self.system not in ['linux', 'darwin', 'windows']:
+                logger.warning(f"不支持的操作系统: {self.system}")
+            
+            # 检查操作系统特定要求
+            if self.system == 'windows':
+                # Windows特定检查
+                if not os.environ.get('DOCKER_HOST'):
+                    logger.error("Windows环境下需要安装Docker Desktop")
+                    return False
+            elif self.system == 'darwin':
+                # macOS特定检查
+                if not os.path.exists('/usr/local/bin/docker'):
+                    logger.error("macOS环境下需要安装Docker Desktop")
+                    return False
+            elif self.system == 'linux':
+                # Linux特定检查
+                if not os.path.exists('/usr/bin/docker'):
+                    logger.error("Linux环境下需要安装Docker")
+                    return False
+            
+            return True
+        except Exception as e:
+            logger.error(f"检查系统要求时出错: {str(e)}")
+            return False
 
-        # 检查操作系统特定要求
-        if self.system == 'windows':
-            # Windows特定检查
-            if not os.environ.get('DOCKER_HOST'):
-                issues.append("Windows环境下需要安装Docker Desktop")
-        elif self.system == 'darwin':
-            # macOS特定检查
-            if not os.path.exists('/usr/local/bin/docker'):
-                issues.append("macOS环境下需要安装Docker Desktop")
-        elif self.system == 'linux':
-            # Linux特定检查
-            if not os.path.exists('/usr/bin/docker'):
-                issues.append("Linux环境下需要安装Docker")
-
-        return issues
-
-    def check_package_versions(self, requirements: List[Dict]) -> List[Tuple[str, str]]:
-        """检查包版本兼容性"""
-        issues = []
+    def check_package_updates(self) -> None:
+        """检查包更新"""
+        requirements = self.parse_requirements()
         for req in requirements:
             package_info = self.get_package_info(req['name'])
             if package_info:
                 latest_version = package_info['info']['version']
-                if req['specs']:
-                    current_spec = req['specs'][0]
-                    if current_spec[0] == '>=' and current_spec[1] < latest_version:
-                        issues.append((req['name'], f"有新版本可用: {latest_version}"))
-        return issues
+                current_version = next((v for v, _ in req['specs'] if v != '=='), None)
+                if current_version and current_version != latest_version:
+                    logger.info(f"包 {req['name']} 有新版本: {latest_version} (当前: {current_version})")
+
+    def load_cache(self) -> Optional[Dict]:
+        """加载缓存"""
+        if self.cache_file.exists():
+            try:
+                with open(self.cache_file, 'r') as f:
+                    cache = json.load(f)
+                    cache_time = datetime.fromisoformat(cache['timestamp'])
+                    if datetime.now() - cache_time < self.cache_duration:
+                        return cache
+            except Exception as e:
+                logger.warning(f"加载缓存失败: {str(e)}")
+        return None
+
+    def save_cache(self, result: bool) -> None:
+        """保存缓存"""
+        try:
+            cache = {
+                'timestamp': datetime.now().isoformat(),
+                'result': result
+            }
+            with open(self.cache_file, 'w') as f:
+                json.dump(cache, f)
+        except Exception as e:
+            logger.warning(f"保存缓存失败: {str(e)}")
 
     def run_checks(self) -> bool:
         """运行所有检查"""
         logger.info("开始依赖检查...")
         
-        # 检查系统要求
-        system_issues = self.check_system_requirements()
-        if system_issues:
-            for issue in system_issues:
-                logger.error(issue)
-            return False
+        # 检查缓存
+        cache = self.load_cache()
+        if cache is not None:
+            logger.info("使用缓存的检查结果")
+            return cache['result']
 
-        # 解析requirements.txt
-        try:
-            requirements = self.parse_requirements()
-            if not requirements:
-                logger.error("没有找到有效的依赖项")
-                return False
-            logger.info(f"成功解析 {len(requirements)} 个依赖项")
-        except Exception as e:
-            logger.error(f"解析requirements.txt失败: {str(e)}")
+        # 检查系统要求
+        system_ok = self.check_system_requirements()
+        if not system_ok:
             return False
 
         # 检查包兼容性
-        conflicts = self.check_package_compatibility(requirements)
-        if conflicts:
-            logger.error("发现依赖冲突:")
-            for package, error in conflicts:
-                logger.error(f"- {package}: {error}")
+        compatibility_ok = self.check_package_compatibility()
+        if not compatibility_ok:
             return False
 
-        # 检查包版本
-        version_issues = self.check_package_versions(requirements)
-        if version_issues:
-            logger.warning("发现可更新的包:")
-            for package, message in version_issues:
-                logger.warning(f"- {package}: {message}")
+        # 检查包更新
+        self.check_package_updates()
 
+        # 保存结果
+        self.save_cache(True)
         logger.info("依赖检查完成")
         return True
 
